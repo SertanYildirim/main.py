@@ -17,43 +17,43 @@ from modules import (
 )
 
 def main():
-    st.set_page_config(page_title="🔍 Veri Manipülasyonu", layout="wide")
-    st.title("🔍 Veri Manipülasyonu Uygulaması")
+    st.set_page_config(page_title="🔍 Data Manipulation", layout="wide")
+    st.title("🔍 Data Manipulation Application")
 
-    # session_state'de page_selected yoksa başlat
+    # Initialize page_selected in session_state if not present
     if "page_selected" not in st.session_state:
-        st.session_state.page_selected = "Veri Yükleme"  # Varsayılan olarak veri yükleme açık
+        st.session_state.page_selected = "Data Loading"  # Default to Data Loading
 
-    # Sidebar expander içinde sayfa seçimleri
+    # Page selections inside Sidebar expander
     pages = {
-        "Veri Yükleme": "📥",
-        "Keşifsel Veri Analizi (EDA)": "📊",
-        "Eksik Veri İşlemleri": "🧼",
-        "Aykırı Değer İşlemleri": "⚠️",
-        "Veri Dönüştürme": "🔄",
-        "Veri Birleştirme": "🔗",
-        "Filtreleme & Sıralama": "🔍",
-        "Sorgulama & Filtreleme": "📏",
-        "Gruplama": "🗂️",
-        "Özellik Mühendisliği": "✨",
-        "Görselleştirme": "📈",
-        "Zaman Serisi Analizi": "⏱️",
-        "Loglama": "📝",
-        "Kaydet & Aktar": "💾"
+        "Data Loading": "📥",
+        "Exploratory Data Analysis (EDA)": "📊",
+        "Missing Data Handling": "🧼",
+        "Outlier Handling": "⚠️",
+        "Data Transformation": "🔄",
+        "Data Merging": "🔗",
+        "Filtering & Sorting": "🔍",
+        "Querying & Filtering": "📏",
+        "Grouping": "🗂️",
+        "Feature Engineering": "✨",
+        "Visualization": "📈",
+        "Time Series Analysis": "⏱️",
+        "Logging": "📝",
+        "Save & Export": "💾"
     }
 
-    # CSS ile expander başlığını ortala ve kapatma ikonunu gizle
+    # CSS to center expander title and hide close icon
     st.markdown(
         """
         <style>
-        /* Expander başlığını ortala */
+        /* Center expander title */
         div[data-testid="stExpander"] > div:first-child {
             justify-content: center;
             text-align: center;
             font-weight: bold;
             font-size: 18px;
         }
-        /* Expander kapatma ikonunu gizle */
+        /* Hide expander close icon */
         div[data-testid="stExpander"] > div:first-child > button {
             display: none;
         }
@@ -62,45 +62,45 @@ def main():
         unsafe_allow_html=True
     )
 
-    with st.sidebar.expander("🗂️ İşlem Seçimi", expanded=True):
+    with st.sidebar.expander("🗂️ Operation Selection", expanded=True):
         for page_name, icon in pages.items():
             if st.button(f"{icon} {page_name}", use_container_width=True, key=page_name):
                 st.session_state.page_selected = page_name
 
-    # Sağ tarafta içerik
+    # Content on the right side
     if st.session_state.page_selected:
         match st.session_state.page_selected:
-            case "Veri Yükleme":
+            case "Data Loading":
                 loader.run()
-            case "Keşifsel Veri Analizi (EDA)":
+            case "Exploratory Data Analysis (EDA)":
                 eda.run()
-            case "Eksik Veri İşlemleri":
+            case "Missing Data Handling":
                 cleaner.run()
-            case "Aykırı Değer İşlemleri":
+            case "Outlier Handling":
                 outlier_handler.run()
-            case "Özellik Mühendisliği":
+            case "Feature Engineering":
                 feature_engineer.run()
-            case "Veri Dönüştürme":
+            case "Data Transformation":
                 transformer.run()
-            case "Zaman Serisi Analizi":
+            case "Time Series Analysis":
                 time_series.run()
-            case "Veri Birleştirme":
+            case "Data Merging":
                 merger.run()
-            case "Filtreleme & Sıralama":
+            case "Filtering & Sorting":
                 filter_sort.run()
-            case "Sorgulama & Filtreleme":
+            case "Querying & Filtering":
                 normalizer.run()
-            case "Gruplama":
+            case "Grouping":
                 grouper.run()
-            case "Görselleştirme":
+            case "Visualization":
                 visualizer.run()
-            case "Kaydet & Aktar":
+            case "Save & Export":
                 exporter.run()
-            case "Loglama":
+            case "Logging":
                 logger.run()
 
     else:
-        st.info("Soldaki panelden bir işlem seçin.")
+        st.info("Select an operation from the left panel.")
 
 if __name__ == "__main__":
     main()
