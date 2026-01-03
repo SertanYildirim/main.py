@@ -4,46 +4,58 @@ import streamlit as st
 import pandas as pd
 
 def run():
-    st.subheader("📊 Veriyi Gruplama (Grouper)")
+    st.subheader("📊 Data Grouping (Grouper)")
 
     if "data" not in st.session_state:
-        st.warning("Lütfen önce bir veri yükleyin.")
+        st.warning("Please load data first.")
         return
 
     df = st.session_state["data"]
-    df_temp = df.copy()  # Geçici DataFrame
+    
+    st.write("📊 Current Data (Temporary):")
+    st.dataframe(df.head())
 
-    st.write("📊 Mevcut Veri (Geçici):")
-    st.dataframe(df_temp.head())
+    st.write("### ➕ Select Column to Group By")
+    group_column = st.selectbox("Select column to group by", df.columns)
 
-    st.write("### ➕ Gruplama Yapılacak Kolonu Seç")
-    group_column = st.selectbox("Gruplama yapılacak sütunu seç", df_temp.columns)
+    st.write("### 🔸 Aggregation Function")
+    aggregation_func = st.selectbox("Select function", ["mean", "sum", "count", "min", "max", "median"])
 
-    st.write("### 🔸 Gruplama Sonrası Hangi İşlemi Yapmak İstersiniz?")
-    aggregation_func = st.selectbox("Özetleme Fonksiyonu", ["mean", "sum", "count", "min", "max", "median"])
-
-    if st.button("Grupla ve Özetle"):
+    # 1. Step: Perform Grouping
+    if st.button("Group and Summarize"):
         try:
-            # Sayısal sütunları al, grup sütununu çıkar
-            num_cols = [col for col in df_temp.select_dtypes(include="number").columns if col != group_column]
+            # Get numerical columns, exclude the grouping column
+            num_cols = [col for col in df.select_dtypes(include="number").columns if col != group_column]
 
             if not num_cols:
-                st.warning("Seçilen sütun dışında sayısal veri bulunamadı. Gruplama işlemi sayısal sütunlarla yapılır.")
-                return
+                st.warning("No numerical data found other than the selected column. Grouping requires numerical columns.")
+            else:
+                # Grouping and aggregation
+                grouped_df = df.groupby(group_column)[num_cols].agg(aggregation_func).reset_index()
 
-            # Gruplama ve aggregation
-            grouped_df = df_temp.groupby(group_column)[num_cols].agg(aggregation_func).reset_index()
-
-            # Yeni sütun isimleri
-            grouped_df.columns = [group_column] + [f"{col}_{aggregation_func}" for col in num_cols]
-
-            st.write("### 📊 Gruplama Sonucu (Geçici)")
-            st.dataframe(grouped_df)
-
-            # ------------------- Session State Kaydet -------------------
-            if st.button("✅ Session State'e Kaydet"):
-                st.session_state["data"] = grouped_df
-                st.success("Güncellenmiş veri session_state'e kaydedildi.")
+                # Rename columns
+                grouped_df.columns = [group_column] + [f"{col}_{aggregation_func}" for col in num_cols]
+                
+                # Save to temporary state to allow viewing and saving in the next step
+                st.session_state["grouped_temp"] = grouped_df
 
         except Exception as e:
-            st.error(f"Hata oluştu: {e}")
+            st.error(f"Error occurred: {e}")
+
+    # 2. Step: Show Result and Save (Persistent Block)
+    if "grouped_temp" in st.session_state:
+        st.write("### 📊 Grouping Result (Temporary)")
+        st.dataframe(st.session_state["grouped_temp"])
+
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("✅ Save to Session State"):
+                st.session_state["data"] = st.session_state["grouped_temp"]
+                # Optional: Clear temp after save
+                del st.session_state["grouped_temp"]
+                st.success("Updated data saved to session_state.")
+                st.rerun() # Refresh to show new data
+        with col2:
+            if st.button("❌ Clear Result"):
+                del st.session_state["grouped_temp"]
+                st.rerun()
