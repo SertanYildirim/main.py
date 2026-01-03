@@ -6,75 +6,76 @@ import streamlit as st
 
 def run():
     """
-    Özellik mühendisliği adımlarını uygular.
-    Loader tarih kolonu bulduysa index (DatetimeIndex) üzerinden otomatik çalışır.
-    Diğer adımlar yalnızca kullanıcı seçim yaparsa uygulanır.
+    Applies feature engineering steps.
+    Works automatically on index if Loader found a date column (DatetimeIndex).
+    Other steps are applied only if selected by the user.
     """
 
-    st.subheader("📊 Özellik Mühendisliği (Feature Engineering)")
+    st.subheader("📊 Feature Engineering")
 
     if "data" not in st.session_state:
-        st.warning("Lütfen önce veri yükleyin.")
+        st.warning("Please load data first.")
         return
 
     df = st.session_state["data"].copy()
 
-    # --- 1) Kategorik (One-Hot) ---
-    st.write("### 🗂 Kategorik Sütunlar (One-Hot Encoding)")
+    # --- 1) Categorical (One-Hot) ---
+    st.write("### 🗂 Categorical Columns (One-Hot Encoding)")
     categorical_columns = st.multiselect(
-        "One-Hot Encoding yapılacak kategorik sütunları seçin",
+        "Select categorical columns for One-Hot Encoding",
         df.select_dtypes(include="object").columns.tolist()
     )
 
-    # --- 2) Sayısal (Scaling) ---
-    st.write("### 🔢 Sayısal Sütunlar (Min-Max Scaling)")
+    # --- 2) Numerical (Scaling) ---
+    st.write("### 🔢 Numerical Columns (Min-Max Scaling)")
     scale_columns = st.multiselect(
-        "Ölçeklenecek sayısal sütunları seçin",
+        "Select numerical columns to scale",
         df.select_dtypes(include=np.number).columns.tolist()
     )
 
-    # --- 3) Tarih (Otomatik yerine butonla) ---
-    st.write("### 📅 Tarih Özellikleri")
+    # --- 3) Date (Button instead of automatic) ---
+    st.write("### 📅 Date Features")
     has_dt_index = isinstance(df.index, pd.DatetimeIndex)
 
     if has_dt_index:
-        st.caption("✅ DatetimeIndex algılandı; isterseniz yıl/ay/gün/hafta_günü özelliklerine ayırabilirsiniz.")
-        if st.button("📌 Tarih kolonlarını ayır"):
+        st.caption("✅ DatetimeIndex detected; you can extract year/month/day/weekday features.")
+        if st.button("📌 Extract Date Columns"):
             try:
                 ts = df.index
-                df["Yıl"] = ts.year
-                df["Ay"] = ts.month
-                df["Gün"] = ts.day
-                df["HaftaGünü"] = df.index.weekday + 1   # Pazartesi=1, Pazar=7
+                df["Year"] = ts.year
+                df["Month"] = ts.month
+                df["Day"] = ts.day
+                df["Weekday"] = df.index.weekday + 1   # Monday=1, Sunday=7
 
-                gunler = {
-                    1: "Pazartesi",
-                    2: "Salı",
-                    3: "Çarşamba",
-                    4: "Perşembe",
-                    5: "Cuma",
-                    6: "Cumartesi",
-                    7: "Pazar"
+                days = {
+                    1: "Monday",
+                    2: "Tuesday",
+                    3: "Wednesday",
+                    4: "Thursday",
+                    5: "Friday",
+                    6: "Saturday",
+                    7: "Sunday"
                 }
-                df["HaftaGünüAdı"] = df["HaftaGünü"].map(gunler)
-                st.success("Index (DatetimeIndex) üzerinden yıl, ay, gün, hafta_günü özellikleri oluşturuldu.")
-                if st.button("Session State'e Kaydet"):
+                df["WeekdayName"] = df["Weekday"].map(days)
+                st.success("Year, Month, Day, Weekday features created from Index (DatetimeIndex).")
+                
+                if st.button("Save to Session State", key="save_date_features"):
                     st.session_state["data"] = df
-                    st.success("Güncellenmiş veri session_state'e kaydedildi.")
+                    st.success("Updated data saved to session_state.")
             except Exception as e:
-                st.error(f"DatetimeIndex işlenirken hata: {e}")
+                st.error(f"Error processing DatetimeIndex: {e}")
     else:
-        st.info("ℹ️ Bu veride tarih kolonu yok (DatetimeIndex bulunamadı).")
+        st.info("ℹ️ No date column found (DatetimeIndex not detected).")
 
-    st.write("### 📊 Özellik Mühendisliği Sonuç Verisi")
+    st.write("### 📊 Feature Engineering Result Data")
     st.dataframe(df)
 
-    # --- 4) Yeni Özellik İfadeleri ---
-    st.write("### ✨ Yeni Özellikler (Opsiyonel)")
-    new_features_input = st.text_area("Yeni feature ifadelerini yazın (örn: df['new_col'] = df['col1'] + df['col2'])")
+    # --- 4) New Feature Expressions ---
+    st.write("### ✨ New Features (Optional)")
+    new_features_input = st.text_area("Enter new feature expressions (e.g., df['new_col'] = df['col1'] + df['col2'])")
 
-    if st.button("Özellik Mühendisliğini Uygula"):
-        # 1. Kategorik
+    if st.button("Apply Feature Engineering"):
+        # 1. Categorical
         if categorical_columns:
             for column in categorical_columns:
                 try:
@@ -87,11 +88,11 @@ def run():
                     )
                     df = pd.concat([df, one_hot_df], axis=1)
                     df.drop(columns=[column], inplace=True)
-                    st.success(f"'{column}' sütunu one-hot encoding ile dönüştürüldü.")
+                    st.success(f"Column '{column}' transformed with one-hot encoding.")
                 except TypeError:
-                    # Eski scikit-learn sürümleri için geri dönüş
+                    # Fallback for older scikit-learn versions
                     try:
-                        encoder = OneHotEncoder(drop='first', sparse_output=False)
+                        encoder = OneHotEncoder(drop='first', sparse=False)
                         one_hot_encoded = encoder.fit_transform(df[[column]])
                         one_hot_df = pd.DataFrame(
                             one_hot_encoded,
@@ -100,39 +101,39 @@ def run():
                         )
                         df = pd.concat([df, one_hot_df], axis=1)
                         df.drop(columns=[column], inplace=True)
-                        st.success(f"'{column}' sütunu one-hot encoding ile dönüştürüldü. (compat mod)")
+                        st.success(f"Column '{column}' transformed with one-hot encoding. (compat mode)")
                     except Exception as e:
-                        st.error(f"'{column}' sütunu dönüştürülürken hata: {e}")
+                        st.error(f"Error transforming column '{column}': {e}")
                 except Exception as e:
-                    st.error(f"'{column}' sütunu dönüştürülürken hata: {e}")
+                    st.error(f"Error transforming column '{column}': {e}")
         else:
-            st.info("Dönüştürülecek kategorik sütun seçilmedi.")
+            st.info("No categorical columns selected for transformation.")
 
-        # 2. Sayısal
+        # 2. Numerical
         if scale_columns:
             try:
                 scaler = MinMaxScaler()
                 df[scale_columns] = scaler.fit_transform(df[scale_columns])
-                st.success(f"Sayısal sütunlar ölçeklendi: {', '.join(scale_columns)}")
+                st.success(f"Numerical columns scaled: {', '.join(scale_columns)}")
             except Exception as e:
-                st.error(f"Sayısal sütunlar ölçeklenirken hata: {e}")
+                st.error(f"Error scaling numerical columns: {e}")
         else:
-            st.info("Ölçeklenecek sayısal sütun seçilmedi.")
+            st.info("No numerical columns selected for scaling.")
 
-        # 3. Yeni Özellikler
+        # 3. New Features
         if new_features_input.strip():
             try:
-                # Kullanıcıya açıkça df/np/pd objelerini sunuyoruz
+                # Expose df/np/pd objects explicitly to the user
                 exec(new_features_input, {"df": df, "np": np, "pd": pd})
-                st.success("Yeni feature ifadeleri başarıyla uygulandı.")
+                st.success("New feature expressions applied successfully.")
             except Exception as e:
-                st.error(f"Yeni feature uygulanırken hata: {e}")
+                st.error(f"Error applying new feature: {e}")
 
-        # Sonuçları göster
-        st.write("### 📊 Özellik Mühendisliği Sonuç Verisi")
+        # Show Results
+        st.write("### 📊 Feature Engineering Result Data")
         st.dataframe(df)
 
-        # İsteğe bağlı kaydet
-        if st.button("Session State'e Kaydet"):
+        # Optional Save
+        if st.button("Save to Session State", key="save_final_features"):
             st.session_state["data"] = df
-            st.success("Güncellenmiş veri session_state'e kaydedildi.")
+            st.success("Updated data saved to session_state.")
