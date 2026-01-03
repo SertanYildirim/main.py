@@ -8,33 +8,43 @@ from sklearn.cluster import DBSCAN
 from scipy import stats
 
 def run():
-    st.subheader("🚨 Aykırı Değerleri İşleme (Outlier Handler)")
+    st.subheader("🚨 Outlier Handling")
 
     if "data" not in st.session_state:
-        st.warning("Lütfen önce bir veri yükleyin.")
+        st.warning("Please load data first.")
         return
 
     df = st.session_state["data"]
-    df_temp = df.copy()  # Geçici kopya, değişiklikler burada yapılacak
-    st.write("📊 Mevcut Veri:")
+
+    # --- Temp State for Persistence ---
+    # Create a temporary dataframe in session state to hold changes before saving
+    if "outlier_temp_df" not in st.session_state:
+        st.session_state["outlier_temp_df"] = df.copy()
+    
+    df_temp = st.session_state["outlier_temp_df"]
+
+    st.write("📊 Current Data (Temporary View):")
     st.dataframe(df_temp.head())
 
-    # Sayısal kolon seçimi
+    # Numeric column selection
     numeric_columns = df_temp.select_dtypes(include=[np.number]).columns.tolist()
     if len(numeric_columns) == 0:
-        st.warning("Veri setinde sayısal sütun bulunmamaktadır.")
+        st.warning("No numeric columns found in the dataset.")
         return
 
-    column = st.selectbox("Sayısal veri sütunu seç", numeric_columns)
+    column = st.selectbox("Select numeric column", numeric_columns)
 
-    # Tablar
+    # Tabs
     tab1, tab2, tab3 = st.tabs([
-        "IQR ile Aykırı Değer Analizi",
-        "Z-Score ile Aykırı Değer Analizi",
-        "DBSCAN ile Aykırı Değer Analizi"
+        "Outlier Analysis with IQR",
+        "Outlier Analysis with Z-Score",
+        "Outlier Analysis with DBSCAN"
     ])
 
-    outliers = pd.DataFrame()
+    # Initialize variables to avoid 'undefined' errors
+    outliers_iqr = pd.DataFrame()
+    outliers_z = pd.DataFrame()
+    outliers_db = pd.DataFrame()
 
     # -------------------- IQR --------------------
     with tab1:
@@ -44,111 +54,140 @@ def run():
         lower_bound = Q1 - 1.5 * IQR
         upper_bound = Q3 + 1.5 * IQR
 
-        outliers = df_temp[(df_temp[column] < lower_bound) | (df_temp[column] > upper_bound)]
-        st.write("### Aykırı Değerler (IQR):")
-        st.dataframe(outliers)
+        outliers_iqr = df_temp[(df_temp[column] < lower_bound) | (df_temp[column] > upper_bound)]
+        st.write("### Outliers (IQR):")
+        st.dataframe(outliers_iqr)
 
     # -------------------- Z-SCORE --------------------
     with tab2:
-        z_scores = np.abs(stats.zscore(df_temp[column]))
-        threshold = 3
-        outliers = df_temp[z_scores > threshold]
-        st.write("### Aykırı Değerler (Z-Score):")
-        st.dataframe(outliers)
+        # Handling NaNs for Z-score calculation
+        col_data = df_temp[column].dropna()
+        if not col_data.empty:
+            z_scores = np.abs(stats.zscore(col_data))
+            threshold = 3
+            # Filter based on index
+            outlier_indices = col_data[z_scores > threshold].index
+            outliers_z = df_temp.loc[outlier_indices]
+            st.write("### Outliers (Z-Score):")
+            st.dataframe(outliers_z)
+        else:
+            st.info("Column is empty or contains only NaNs.")
 
     # -------------------- DBSCAN --------------------
     with tab3:
-        eps_val = st.slider("eps (komşuluk mesafesi)", 0.1, 10.0, 1.5)
+        eps_val = st.slider("eps (neighborhood distance)", 0.1, 10.0, 1.5)
         min_samples_val = st.slider("min_samples", 1, 20, 5)
 
-        # Eksik değer kontrolü
+        # Missing value check
         if df_temp[column].isnull().any():
-            st.error("⚠️ Bu sütunda eksik değerler bulundu! DBSCAN NaN değerlerle çalışmaz.")
-            if st.button("🧼 Eksik Veri İşlemlerine Git"):
-                st.session_state.page_selected = "Eksik Veri İşlemleri"
+            st.error("⚠️ Missing values found in this column! DBSCAN does not work with NaN values.")
+            if st.button("🧼 Go to Missing Data Handling"):
+                st.session_state.page_selected = "Missing Data Handling"
                 st.rerun()
         else:
             db = DBSCAN(eps=eps_val, min_samples=min_samples_val).fit(df_temp[[column]])
             labels = pd.Series(db.labels_, index=df_temp.index)
-            outliers = df_temp.loc[labels[labels == -1].index]
+            outliers_db = df_temp.loc[labels[labels == -1].index]
 
-            st.write("### Aykırı Değerler (DBSCAN):")
-            st.dataframe(outliers)
+            st.write("### Outliers (DBSCAN):")
+            st.dataframe(outliers_db)
 
-    # -------------------- İşlem Seçenekleri --------------------
-    if not outliers.empty:
-        st.write("### 🔹 Aykırı Değerlerle Ne Yapmak İstersiniz?")
+    # -------------------- Operation Options --------------------
+    st.markdown("---")
+    st.write("### 🔹 Handle Outliers")
+    
+    # User must select which method's outliers to target
+    method = st.selectbox("Select Method to Target Outliers", ["IQR", "Z-Score", "DBSCAN"])
+    
+    if method == "IQR":
+        target_outliers = outliers_iqr
+    elif method == "Z-Score":
+        target_outliers = outliers_z
+    else:
+        target_outliers = outliers_db
+
+    if not target_outliers.empty:
+        st.write(f"**{len(target_outliers)}** outliers detected using **{method}**.")
+        
         action = st.selectbox(
-            "İşlem türü",
-            ["Sil", "Doldur (Eksik Veri Yöntemleri)"]
+            "Action Type",
+            ["Drop", "Fill (Missing Data Methods)"]
         )
 
-        # Silme işlemi (geçici)
-        if action == "Sil":
-            if st.button("Aykırı Değerleri Sil"):
-                df_temp = df_temp.drop(outliers.index)
-                st.success("Aykırı değerler geçici olarak silindi ✅")
-                st.dataframe(df_temp)
+        # Drop Action
+        if action == "Drop":
+            if st.button("Drop Outliers"):
+                st.session_state["outlier_temp_df"] = df_temp.drop(target_outliers.index)
+                st.success("Outliers dropped temporarily ✅")
+                st.rerun()
 
-        # Doldurma işlemleri (geçici)
-        elif action == "Doldur (Eksik Veri Yöntemleri)":
-            df_temp.loc[outliers.index, column] = np.nan
-
-            doldurma_yontemi = st.selectbox("Doldurma Yöntemi Seç",
-                ["ffill", "bfill", "Ortalama", "Medyan", "Mod", "Sabit Değer", "Yapay Zeka (KNNImputer)"]
+        # Fill Action
+        elif action == "Fill (Missing Data Methods)":
+            doldurma_yontemi = st.selectbox("Select Filling Method",
+                ["ffill", "bfill", "Mean", "Median", "Mode", "Constant Value", "AI (KNNImputer)"]
             )
 
-            # Farklı doldurma yöntemleri
-            if doldurma_yontemi in ["ffill", "bfill"]:
-                if st.button("Doldur", key="btn_fill_fb"):
-                    df_temp = df_temp.fillna(method=doldurma_yontemi)
-                    st.success(f"{doldurma_yontemi.upper()} ile doldurma geçici olarak tamamlandı ✅")
-                    st.dataframe(df_temp)
-
-            elif doldurma_yontemi == "Ortalama":
-                if st.button("Ortalama ile Doldur", key="btn_fill_mean"):
-                    for col in numeric_columns:
-                        df_temp[col].fillna(df_temp[col].mean(), inplace=True)
-                    st.success("Ortalama ile doldurma geçici olarak tamamlandı ✅")
-                    st.dataframe(df_temp)
-
-            elif doldurma_yontemi == "Medyan":
-                if st.button("Medyan ile Doldur", key="btn_fill_median"):
-                    for col in numeric_columns:
-                        df_temp[col].fillna(df_temp[col].median(), inplace=True)
-                    st.success("Medyan ile doldurma geçici olarak tamamlandı ✅")
-                    st.dataframe(df_temp)
-
-            elif doldurma_yontemi == "Mod":
-                if st.button("Mod ile Doldur", key="btn_fill_mode"):
-                    for col in df_temp.columns:
-                        if df_temp[col].isnull().any():
-                            try:
-                                mode_val = df_temp[col].mode()[0]
-                                df_temp[col].fillna(mode_val, inplace=True)
-                            except IndexError:
-                                pass
-                    st.success("Mod ile doldurma geçici olarak tamamlandı ✅")
-                    st.dataframe(df_temp)
-
-            elif doldurma_yontemi == "Sabit Değer":
-                sabit_deger = st.text_input("Sabit değer girin", key="txt_sabit")
-                if st.button("Sabit Değer ile Doldur", key="btn_fill_const"):
-                    df_temp = df_temp.fillna(sabit_deger)
-                    st.success("Sabit değer ile doldurma geçici olarak tamamlandı ✅")
-                    st.dataframe(df_temp)
-
-            elif doldurma_yontemi == "Yapay Zeka (KNNImputer)":
-                if len(numeric_columns) == 0:
-                    st.warning("KNNImputer sadece sayısal sütunlarda çalışır ⚠️")
-                else:
-                    if st.button("KNN ile Doldur", key="btn_fill_knn"):
+            # Different filling methods
+            # We use a nested button structure via session state logic implied above
+            apply_fill = False
+            
+            if doldurma_yontemi == "Constant Value":
+                sabit_deger = st.text_input("Enter constant value", key="txt_sabit")
+                if st.button("Fill with Constant Value", key="btn_fill_const"):
+                    df_temp.loc[target_outliers.index, column] = np.nan
+                    st.session_state["outlier_temp_df"] = df_temp.fillna(sabit_deger)
+                    st.success("Filled with constant value temporarily ✅")
+                    st.rerun()
+            
+            elif doldurma_yontemi == "AI (KNNImputer)":
+                 if st.button("Fill with KNN", key="btn_fill_knn"):
+                    if len(numeric_columns) == 0:
+                        st.warning("KNNImputer works only on numeric columns ⚠️")
+                    else:
+                        df_temp.loc[target_outliers.index, column] = np.nan
                         imputer = KNNImputer(n_neighbors=3)
                         df_temp[numeric_columns] = imputer.fit_transform(df_temp[numeric_columns])
-                        st.success("KNN Imputer ile doldurma geçici olarak tamamlandı ✅")
-                        st.dataframe(df_temp)
+                        st.session_state["outlier_temp_df"] = df_temp
+                        st.success("Filled with KNN Imputer temporarily ✅")
+                        st.rerun()
+            
+            else:
+                if st.button(f"Fill with {doldurma_yontemi}", key="btn_fill_generic"):
+                    # First set outliers to NaN
+                    df_temp.loc[target_outliers.index, column] = np.nan
+                    
+                    if doldurma_yontemi in ["ffill", "bfill"]:
+                        st.session_state["outlier_temp_df"] = df_temp.fillna(method=doldurma_yontemi)
+                    elif doldurma_yontemi == "Mean":
+                        df_temp[column].fillna(df_temp[column].mean(), inplace=True)
+                        st.session_state["outlier_temp_df"] = df_temp
+                    elif doldurma_yontemi == "Median":
+                        df_temp[column].fillna(df_temp[column].median(), inplace=True)
+                        st.session_state["outlier_temp_df"] = df_temp
+                    elif doldurma_yontemi == "Mode":
+                        mode_val = df_temp[column].mode()[0]
+                        df_temp[column].fillna(mode_val, inplace=True)
+                        st.session_state["outlier_temp_df"] = df_temp
+                    
+                    st.success(f"Filled with {doldurma_yontemi} temporarily ✅")
+                    st.rerun()
 
-    # ------------------- Session State Kaydet -------------------
-    if st.button("✅ Session State'e Kaydet"):
-        st.session_state["data"] = df_temp
-        st.success("Güncellenmiş veri session_state'e kaydedildi.")
+    else:
+        st.info(f"No outliers found using {method}.")
+
+    # ------------------- Save Session State -------------------
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Save to Session State"):
+            st.session_state["data"] = st.session_state["outlier_temp_df"]
+            # Reset temp to reflect saved state
+            del st.session_state["outlier_temp_df"]
+            st.success("Updated data saved to session_state.")
+            st.rerun()
+            
+    with col2:
+        if st.button("❌ Reset Changes"):
+            del st.session_state["outlier_temp_df"]
+            st.warning("All temporary changes reset.")
+            st.rerun()
