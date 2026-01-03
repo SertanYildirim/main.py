@@ -4,7 +4,7 @@ import io
 import sqlite3
 import os
 
-# --- Loader fonksiyonların --- (senin verdiğin fonksiyonları kullanıyoruz)
+# --- Loader functions --- 
 def detect_delimiter(sample_text):
     delimiters = [",", ";", "\t", ":"]
     delimiter_counts = {d: sample_text.count(d) for d in delimiters}
@@ -16,7 +16,7 @@ def parse_excel_with_delimiter(df):
         sample_text = "\n".join(col_data.head(5))
         delimiter = detect_delimiter(sample_text)
         df_split = col_data.str.split(delimiter, expand=True)
-        df_split.columns = df_split.iloc[0]  # İlk satır kolon adı
+        df_split.columns = df_split.iloc[0]  # First row is column header
         df_split = df_split[1:].reset_index(drop=True)
         return df_split
     return df
@@ -44,7 +44,7 @@ def set_datetime_index(df):
             df.set_index(datetime_col, inplace=True)
         return df
     except Exception as e:
-        print(f"Datetime index ayarlama hatası: {e}")
+        print(f"Datetime index setting error: {e}")
         return df
 
 def load_file(uploaded_file):
@@ -72,39 +72,39 @@ def load_file(uploaded_file):
                 conn.close()
             else:
                 conn.close()
-                raise Exception("Veritabanında tablo bulunamadı.")
+                raise Exception("No tables found in the database.")
         case _:
-            raise Exception("Desteklenmeyen dosya türü.")
+            raise Exception("Unsupported file type.")
     df = set_datetime_index(df)
     return df
 
-# --- Streamlit arayüzü ---
+# --- Streamlit Interface ---
 def run():
-    st.subheader("📂 Veri Yükleme")
+    st.subheader("📂 Data Loading")
 
     df = None
 
-    # ------------------ Dosya Yükleme ------------------
-    with st.expander("📁 Dışarıdan Dosya Yükle", expanded=True):
-        uploaded_file = st.file_uploader("Veri dosyasını yükleyin", type=["csv", "xlsx", "json"])
+    # ------------------ Upload File ------------------
+    with st.expander("📁 Upload External File", expanded=True):
+        uploaded_file = st.file_uploader("Upload data file", type=["csv", "xlsx", "json"])
         if uploaded_file is not None:
             try:
                 df = load_file(uploaded_file)
-                st.success("✅ Dosya başarıyla yüklendi.")
+                st.success("✅ File uploaded successfully.")
                 st.dataframe(df)
             except Exception as e:
-                st.error(f"Dosya yüklenirken hata: {e}")
+                st.error(f"Error loading file: {e}")
 
-    # ------------------ Örnek Dataset ------------------
-    with st.expander("📊 Örnek Veri Seti Kullan", expanded=True):
+    # ------------------ Sample Dataset ------------------
+    with st.expander("📊 Use Sample Dataset", expanded=True):
         datasets_path = "datasets"
         if not os.path.exists(datasets_path):
-            st.error("⚠️ datasets klasörü bulunamadı.")
+            st.error("⚠️ 'datasets' folder not found.")
         else:
             dataset_files = [f for f in os.listdir(datasets_path) if f.endswith((".csv", ".xlsx", ".json"))]
             if dataset_files:
-                selected_dataset = st.selectbox("Örnek veri setini seçin", dataset_files)
-                if st.button("Örnek Veriyi Yükle"):
+                selected_dataset = st.selectbox("Select a sample dataset", dataset_files)
+                if st.button("Load Sample Data"):
                     try:
                         file_path = os.path.join(datasets_path, selected_dataset)
                         with open(file_path, "rb") as f:
@@ -121,18 +121,18 @@ def run():
                                     return self.file.read()
                             uploaded_mock = UploadedFileMock(f)
                             df = load_file(uploaded_mock)
-                        st.success(f"✅ {selected_dataset} başarıyla yüklendi.")
+                        st.success(f"✅ {selected_dataset} loaded successfully.")
                         st.dataframe(df)
                     except Exception as e:
-                        st.error(f"Hata: {e}")
+                        st.error(f"Error: {e}")
             else:
-                st.warning("datasets klasöründe veri bulunamadı.")
+                st.warning("No data found in 'datasets' folder.")
 
     # ------------------ Session State ------------------
     if df is not None:
         st.session_state["data"] = df
     elif "data" in st.session_state:
-        st.info("Önceden yüklenmiş veri görüntüleniyor:")
+        st.info("Displaying previously loaded data:")
         st.dataframe(st.session_state["data"])
     else:
-        st.warning("Henüz veri yüklenmedi.")
+        st.warning("No data loaded yet.")
