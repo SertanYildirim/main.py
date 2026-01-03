@@ -10,7 +10,7 @@ from keras.models import Sequential
 from keras.layers import GRU, Dense, LSTM
 
 # ====================================
-# Yardımcı Fonksiyonlar
+# Helper Functions
 # ====================================
 
 def preprocess_data(df):
@@ -19,10 +19,10 @@ def preprocess_data(df):
         df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
         df.set_index(df.columns[0], inplace=True)
 
-    # Tüm sayısal kolonları al
+    # Get all numeric columns
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     if len(numeric_cols) > 1:
-        value_col = st.selectbox("Analiz edilecek sayısal kolon", numeric_cols)
+        value_col = st.selectbox("Numerical column to analyze", numeric_cols)
     else:
         value_col = numeric_cols[0]
 
@@ -70,8 +70,8 @@ def run_arima(series, order, steps=12):
     forecast = model_fit.forecast(steps=steps)
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(series, label="Gerçek Seri")
-    ax.plot(forecast.index, forecast, label="Tahmin", color="red")
+    ax.plot(series, label="Actual Series")
+    ax.plot(forecast.index, forecast, label="Forecast", color="red")
     ax.legend()
     st.pyplot(fig)
 
@@ -105,26 +105,26 @@ def run_prophet(series, periods=12, freq="M"):
 def run_sarimax(series, order, seasonal_order, steps):
     from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-    # Modeli fit et
+    # Fit model
     model = SARIMAX(series, order=order, seasonal_order=seasonal_order)
     model_fit = model.fit(disp=False)
     forecast = model_fit.get_forecast(steps=steps)
     forecast_mean = forecast.predicted_mean
     conf_int = forecast.conf_int()
 
-    # Grafik
+    # Plot
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(series, label="Gerçek Seri")
-    ax.plot(forecast_mean.index, forecast_mean, label="SARIMAX Tahmin", color="orange")
+    ax.plot(series, label="Actual Series")
+    ax.plot(forecast_mean.index, forecast_mean, label="SARIMAX Forecast", color="orange")
     ax.fill_between(conf_int.index, conf_int.iloc[:, 0], conf_int.iloc[:, 1],
                     color="orange", alpha=0.2)
     ax.legend()
     st.pyplot(fig)
 
-    # Tahmin tablosu
+    # Forecast table
     st.dataframe(forecast_mean.rename("Forecast"))
 
-    # Metrikler
+    # Metrics
     if len(series) > steps:
         y_true = series[-steps:]
         y_pred = forecast_mean[:steps]
@@ -135,24 +135,24 @@ def run_sarimax(series, order, seasonal_order, steps):
 def run_tes(series, periods, seasonal, trend, seasonal_periods):
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-    # Modeli fit et
+    # Fit model
     model = ExponentialSmoothing(series, trend=trend,
                                  seasonal=seasonal,
                                  seasonal_periods=seasonal_periods)
     model_fit = model.fit()
     forecast = model_fit.forecast(periods)
 
-    # Grafik
+    # Plot
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(series, label="Gerçek Seri")
-    ax.plot(forecast.index, forecast, label="TES Tahmin", color="green")
+    ax.plot(series, label="Actual Series")
+    ax.plot(forecast.index, forecast, label="TES Forecast", color="green")
     ax.legend()
     st.pyplot(fig)
 
-    # Tahmin tablosu
+    # Forecast table
     st.dataframe(forecast.rename("Forecast"))
 
-    # Metrikler
+    # Metrics
     if len(series) > periods:
         y_true = series[-periods:]
         y_pred = forecast[:periods]
@@ -160,7 +160,7 @@ def run_tes(series, periods, seasonal, trend, seasonal_periods):
         st.success(f"MAE: {mae:.3f} | RMSE: {rmse:.3f} | MAPE: {mape:.2f}%")
 
 def run_lstm(series, look_back=10, steps=12, epochs=20, batch_size=16):
-    # Sequence oluşturma
+    # Create sequences
     def create_sequences(data, look_back):
         X, y = [], []
         for i in range(len(data) - look_back):
@@ -187,10 +187,10 @@ def run_lstm(series, look_back=10, steps=12, epochs=20, batch_size=16):
 
     model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
-    # Test tahmin
+    # Test prediction
     y_pred = model.predict(X_test, verbose=0).flatten()
 
-    # Gelecek forecast
+    # Future forecast
     last_seq = values[-look_back:].reshape(1, look_back, 1)
     future_preds = []
     for _ in range(steps):
@@ -201,26 +201,26 @@ def run_lstm(series, look_back=10, steps=12, epochs=20, batch_size=16):
     forecast_index = pd.date_range(start=series.index[-1], periods=steps+1, freq="M")[1:]
     forecast_series = pd.Series(future_preds, index=forecast_index)
 
-    # Grafik
+    # Plot
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(series, label="Gerçek Seri")
-    ax.plot(forecast_series.index, forecast_series.values, label="LSTM Tahmin", color="purple")
+    ax.plot(series, label="Actual Series")
+    ax.plot(forecast_series.index, forecast_series.values, label="LSTM Forecast", color="purple")
     ax.legend()
     st.pyplot(fig)
 
-    # Tahmin tablosu
+    # Forecast table
     st.dataframe(forecast_series.rename("Forecast"))
 
-    # Metrikler
+    # Metrics
     mae = mean_absolute_error(y_test, y_pred)
-    mse = mean_squared_error(y_test, y_pred)  # squared=False kaldırıldı
-    rmse = np.sqrt(mse)                       # RMSE manuel hesaplandı
+    mse = mean_squared_error(y_test, y_pred)  # squared=False removed
+    rmse = np.sqrt(mse)                       # RMSE calculated manually
     mape = (abs((y_test - y_pred) / y_test).mean()) * 100
     st.success(f"MAE: {mae:.3f} | RMSE: {rmse:.3f} | MAPE: {mape:.2f}%")
 
 def run_gru(series, look_back=10, steps=12, epochs=20, batch_size=16):
 
-    # Sequence oluşturma
+    # Create sequences
     def create_sequences(data, look_back):
         X, y = [], []
         for i in range(len(data) - look_back):
@@ -247,10 +247,10 @@ def run_gru(series, look_back=10, steps=12, epochs=20, batch_size=16):
 
     model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
-    # Test tahmin
+    # Test prediction
     y_pred = model.predict(X_test, verbose=0).flatten()
 
-    # Gelecek forecast
+    # Future forecast
     last_seq = values[-look_back:].reshape(1, look_back, 1)
     future_preds = []
     for _ in range(steps):
@@ -261,60 +261,60 @@ def run_gru(series, look_back=10, steps=12, epochs=20, batch_size=16):
     forecast_index = pd.date_range(start=series.index[-1], periods=steps+1, freq="M")[1:]
     forecast_series = pd.Series(future_preds, index=forecast_index)
 
-    # Grafik
+    # Plot
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(series, label="Gerçek Seri")
-    ax.plot(forecast_series.index, forecast_series.values, label="GRU Tahmin", color="brown")
+    ax.plot(series, label="Actual Series")
+    ax.plot(forecast_series.index, forecast_series.values, label="GRU Forecast", color="brown")
     ax.legend()
     st.pyplot(fig)
 
-    # Tahmin tablosu
+    # Forecast table
     st.dataframe(forecast_series.rename("Forecast"))
 
-    # Metrikler
+    # Metrics
     mae = mean_absolute_error(y_test, y_pred)
-    mse = mean_squared_error(y_test, y_pred)  # squared=False kaldırıldı
-    rmse = np.sqrt(mse)                       # RMSE manuel hesaplandı
+    mse = mean_squared_error(y_test, y_pred)  # squared=False removed
+    rmse = np.sqrt(mse)                       # RMSE calculated manually
     mape = (abs((y_test - y_pred) / y_test).mean()) * 100
     st.success(f"MAE: {mae:.3f} | RMSE: {rmse:.3f} | MAPE: {mape:.2f}%")
 
 
 # ====================================
-# Ana Çalıştırıcı
+# Main Runner
 # ====================================
 def run():
-    st.subheader("📈 Zaman Serisi Analizi ve Forecasting")
+    st.subheader("📈 Time Series Analysis and Forecasting")
 
     if "data" not in st.session_state:
-        st.warning("Lütfen önce veri yükleyin.")
+        st.warning("Please load data first.")
         return
 
     df = st.session_state["data"]
 
-    # --- DatetimeIndex kontrolü ---
+    # --- DatetimeIndex check ---
     if not isinstance(df.index, pd.DatetimeIndex):
-        st.error("⛔ Bu veri zaman serisi verisi değil. Lütfen datetime index içeren bir veri yükleyin.")
+        st.error("⛔ This is not time series data. Please load data with a datetime index.")
         return
 
     df, value_col = preprocess_data(df)
 
-    st.success(f"Algılanan değer sütunu: **{value_col}**")
+    st.success(f"Detected value column: **{value_col}**")
     st.write(df.head())
 
-    st.subheader("🔄 Frekans Dönüşümü")
-    user_freq = st.selectbox("Hedef Frekans", ["Günlük", "Haftalık", "Aylık", "Yıllık"])
-    freq_map = {"Günlük": "D", "Haftalık": "W", "Aylık": "ME", "Yıllık": "YE"}
+    st.subheader("🔄 Frequency Conversion")
+    user_freq = st.selectbox("Target Frequency", ["Daily", "Weekly", "Monthly", "Yearly"])
+    freq_map = {"Daily": "D", "Weekly": "W", "Monthly": "ME", "Yearly": "YE"}
     converted_data = resample_data(df, value_col, freq_map[user_freq])
     st.line_chart(converted_data)
 
-    st.subheader("📊 Durağanlık Testi")
+    st.subheader("📊 Stationarity Test")
     stationary, pval = is_stationary(converted_data)
     if stationary:
-        st.success(f"Durağan ✅ (p-value={pval:.3f})")
+        st.success(f"Stationary ✅ (p-value={pval:.3f})")
     else:
-        st.warning(f"Durağan Değil ❌ (p-value={pval:.3f})")
+        st.warning(f"Not Stationary ❌ (p-value={pval:.3f})")
 
-    st.subheader("🪄 Zaman Serisi Decomposition")
+    st.subheader("🪄 Time Series Decomposition")
     model = st.radio("Model", ["additive", "multiplicative"])
     if st.button("Decompose"):
         ts_decompose(converted_data, model=model)
@@ -329,66 +329,66 @@ def run():
         st.info(f"H={H:.3f} → Trendy (Persistent)")
 
     st.subheader("🔮 Forecasting")
-    model_choice = st.selectbox("Tahmin Modeli", ["ARIMA", "Prophet", "SARIMAX", "TES", "LSTM", "GRU"])
+    model_choice = st.selectbox("Forecasting Model", ["ARIMA", "Prophet", "SARIMAX", "TES", "LSTM", "GRU"])
 
     if model_choice == "ARIMA":
         p = st.slider("p (AR)", 0, 5, 1)
-        d = st.slider("d (Fark)", 0, 2, 1)
+        d = st.slider("d (Difference)", 0, 2, 1)
         q = st.slider("q (MA)", 0, 5, 1)
-        steps = st.slider("Tahmin Adımı", 1, 60, 12)
-        if st.button("ARIMA Tahmini"):
+        steps = st.slider("Forecast Steps", 1, 60, 12)
+        if st.button("Run ARIMA"):
             run_arima(converted_data, (p, d, q), steps)
 
     elif model_choice == "Prophet":
-        steps = st.slider("Tahmin Periyodu", 1, 60, 12)
-        freq = st.radio("Frekans", ["D", "W", "M", "Y"], index=2, horizontal=True)
-        if st.button("Prophet Tahmini"):
+        steps = st.slider("Forecast Period", 1, 60, 12)
+        freq = st.radio("Frequency", ["D", "W", "M", "Y"], index=2, horizontal=True)
+        if st.button("Run Prophet"):
             run_prophet(converted_data, steps, freq)
 
         # ---------------- SARIMAX ----------------
     elif model_choice == "SARIMAX":
-        st.markdown("**Order Parametreleri**")
+        st.markdown("**Order Parameters**")
         p = st.slider("p (AR)", 0, 5, 1)
-        d = st.slider("d (Fark)", 0, 2, 1)
+        d = st.slider("d (Difference)", 0, 2, 1)
         q = st.slider("q (MA)", 0, 5, 1)
 
-        st.markdown("**Seasonal Order Parametreleri**")
+        st.markdown("**Seasonal Order Parameters**")
         P = st.slider("P (AR)", 0, 5, 1)
-        D = st.slider("D (Fark)", 0, 2, 1)
+        D = st.slider("D (Difference)", 0, 2, 1)
         Q = st.slider("Q (MA)", 0, 5, 1)
-        s = st.number_input("Mevsimsellik Periyodu (s)", min_value=1, value=12)
+        s = st.number_input("Seasonal Period (s)", min_value=1, value=12)
 
-        steps = st.slider("Tahmin Adımı", 1, 60, 12)
-        if st.button("SARIMAX Tahmini"):
+        steps = st.slider("Forecast Steps", 1, 60, 12)
+        if st.button("Run SARIMAX"):
             run_sarimax(converted_data, order=(p, d, q), seasonal_order=(P, D, Q, s), steps=steps)
 
         # ---------------- TES ----------------
     elif model_choice == "TES":
         trend = st.radio("Trend", ["add", "mul"])
-        seasonal = st.radio("Mevsimsellik", ["add", "mul"])
-        seasonal_periods = st.number_input("Sezon Periyodu", min_value=2, value=12)
-        steps = st.slider("Tahmin Adımı", 1, 60, 12)
-        if st.button("TES Tahmini"):
+        seasonal = st.radio("Seasonality", ["add", "mul"])
+        seasonal_periods = st.number_input("Seasonal Period", min_value=2, value=12)
+        steps = st.slider("Forecast Steps", 1, 60, 12)
+        if st.button("Run TES"):
             run_tes(converted_data, periods=steps, trend=trend, seasonal=seasonal, seasonal_periods=seasonal_periods)
 
     # ---------------- LSTM ----------------
     elif model_choice == "LSTM":
-        st.markdown("**Model Parametreleri**")
+        st.markdown("**Model Parameters**")
         look_back = st.slider("Look Back", 1, 50, 10)
         epochs = st.slider("Epochs", 1, 100, 20)
         batch_size = st.slider("Batch Size", 1, 128, 16)
-        steps = st.slider("Tahmin Adımı", 1, 60, 12)
+        steps = st.slider("Forecast Steps", 1, 60, 12)
 
-        if st.button("LSTM Tahmini"):
+        if st.button("Run LSTM"):
             run_lstm(converted_data, look_back=look_back, steps=steps, epochs=epochs, batch_size=batch_size)
 
     # ---------------- GRU ----------------
     elif model_choice == "GRU":
-        st.markdown("**Model Parametreleri**")
+        st.markdown("**Model Parameters**")
         look_back = st.slider("Look Back", 1, 50, 10)
         epochs = st.slider("Epochs", 1, 100, 20)
         batch_size = st.slider("Batch Size", 1, 128, 16)
-        steps = st.slider("Tahmin Adımı", 1, 60, 12)
+        steps = st.slider("Forecast Steps", 1, 60, 12)
 
-        if st.button("GRU Tahmini"):
+        if st.button("Run GRU"):
             run_gru(converted_data, look_back=look_back, steps=steps, epochs=epochs, batch_size=batch_size)
