@@ -2,20 +2,20 @@ import logging
 
 def run(log_name='app_logger', log_file='app.log', level=logging.INFO):
     """
-    Logger yapılandırmasını yapar.
+    Configures the logger.
     """
     logger = logging.getLogger(log_name)
     logger.setLevel(level)
 
-    # Eğer daha önce handler eklenmişse temizle
+    # Clear handlers if they already exist to avoid duplicate logs
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    # Dosya handler'ı
+    # File handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(level)
 
-    # Console handler'ı
+    # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
 
@@ -24,22 +24,22 @@ def run(log_name='app_logger', log_file='app.log', level=logging.INFO):
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
 
-    # Handler'ları ekle
+    # Add handlers
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
     return logger
 
-# Logger objesini oluştur
+# Create logger object
 logger = run()
 
-# Örnek kullanım
+# Example usage
 def perform_task():
-    logger.debug("Bu bir debug mesajıdır.")
-    logger.info("Bu bir bilgi mesajıdır.")
-    logger.warning("Bu bir uyarı mesajıdır.")
-    logger.error("Bu bir hata mesajıdır.")
-    logger.critical("Bu bir kritik mesajdır.")
+    logger.debug("This is a debug message.")
+    logger.info("This is an info message.")
+    logger.warning("This is a warning message.")
+    logger.error("This is an error message.")
+    logger.critical("This is a critical message.")
 
 # Test
 perform_task()
